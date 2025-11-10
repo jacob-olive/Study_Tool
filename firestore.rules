@@ -43,6 +43,10 @@ service cloud.firestore {
 
       match /study-guides/{guideId} {
         allow read, write: if isOwner(userId);
+        
+        match /schedule/{scheduleId} {
+          allow read, write: if isOwner(userId);
+        }
       }
     }
   }

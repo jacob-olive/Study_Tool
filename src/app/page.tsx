@@ -1,6 +1,7 @@
 import Protected from '@/components/Protected'
 import Link from 'next/link'
 import { Navbar } from '@/components/navbar'
+import ActiveCoursesList from '@/components/ActiveCoursesList'
 import type { Metadata } from 'next'
 
 export const metadata: Metadata = {
@@ -20,6 +21,11 @@ export default async function Dashboard() {
             <p className="mt-2 text-base/7 text-gray-600 dark:text-gray-400">
               Manage your study plan and Canvas integration
             </p>
+            
+            <div className="mt-8">
+              <ActiveCoursesList />
+            </div>
+
             <div className="mt-8 grid gap-4 sm:grid-cols-2">
               <Link
                 href="/plan"

@@ -1,16 +1,52 @@
-import Protected from '@/components/Protected'
-import { Navbar } from '@/components/navbar'
-import StudyGuideUploader from '@/components/StudyGuideUploader'
-import StudyGuidesList from '@/components/StudyGuidesList'
-import type { Metadata } from 'next'
+'use client'
 
-export const metadata: Metadata = {
-  title: 'Study Guides - StudyFlow',
+import { useState, useEffect, Suspense } from 'react'
+import { useSearchParams } from 'next/navigation'
+import { ClientProtected } from '@/components/ClientProtected'
+import { Navbar } from '@/components/navbar'
+import CourseStudyGuideSelector from '@/components/CourseStudyGuideSelector'
+import CourseStudyGuideGenerator from '@/components/CourseStudyGuideGenerator'
+import StudyGuidesList from '@/components/StudyGuidesList'
+
+function StudyGuidesContent() {
+  const searchParams = useSearchParams()
+  const courseIdFromUrl = searchParams.get('courseId')
+  const [selectedCourseId, setSelectedCourseId] = useState<string | null>(courseIdFromUrl)
+
+  useEffect(() => {
+    // Update selected course when URL changes
+    if (courseIdFromUrl) {
+      setSelectedCourseId(courseIdFromUrl)
+    }
+  }, [courseIdFromUrl])
+
+  const handleCourseSelected = (courseId: string) => {
+    setSelectedCourseId(courseId)
+    // Update URL without page reload
+    window.history.pushState({}, '', `/study-guides?courseId=${courseId}`)
+  }
+
+  const handleBack = () => {
+    setSelectedCourseId(null)
+    // Clear URL parameter
+    window.history.pushState({}, '', '/study-guides')
+  }
+
+  return (
+    <>
+      {!selectedCourseId ? (
+        <CourseStudyGuideSelector onCourseSelected={handleCourseSelected} />
+      ) : (
+        <CourseStudyGuideGenerator courseId={selectedCourseId} onBack={handleBack} />
+      )}
+      <StudyGuidesList />
+    </>
+  )
 }
 
-export default async function StudyGuidesPage() {
+export default function StudyGuidesPage() {
   return (
-    <Protected>
+    <ClientProtected>
       <div className="pb-30">
         <Navbar>
           <div className="min-w-0">Study Guides</div>
@@ -21,13 +57,13 @@ export default async function StudyGuidesPage() {
               Study Guides
             </h1>
             <div className="space-y-8">
-              <StudyGuideUploader />
-              <StudyGuidesList />
+              <Suspense fallback={<div className="text-sm text-gray-600 dark:text-gray-400">Loading...</div>}>
+                <StudyGuidesContent />
+              </Suspense>
             </div>
           </div>
         </main>
       </div>
-    </Protected>
+    </ClientProtected>
   )
 }
-

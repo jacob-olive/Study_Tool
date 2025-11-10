@@ -58,13 +58,37 @@ export const StudyGuideSchema = z.object({
   id: z.string(),
   userId: z.string(),
   name: z.string(),
-  description: z.string().optional(),
-  pdfPath: z.string(),
-  pdfUrl: z.string(),
-  openaiFileId: z.string(),
+  description: z.string().nullable().optional(),
+  pdfPath: z.string().nullable().optional(), // Single PDF for backward compatibility
+  pdfUrl: z.string().nullable().optional(),
+  pdfPaths: z.array(z.string()).optional(), // Multiple PDFs
+  pdfUrls: z.array(z.string()).optional(),
+  openaiFileId: z.string().nullable().optional(), // Single file ID for backward compatibility
+  openaiFileIds: z.array(z.string()).optional(), // Multiple file IDs
   associationType: z.enum(['course', 'task', 'general']),
-  associationId: z.string().optional(),
-  associationName: z.string().optional(),
+  associationId: z.string().nullable().optional(),
+  associationName: z.string().nullable().optional(),
+  courseId: z.string().nullable().optional(),
+  assignmentContext: z.array(z.object({
+    name: z.string(),
+    dueAt: z.string().nullable(),
+    pointsPossible: z.number(),
+  })).optional(),
+  canvasMaterialsContext: z.object({
+    modules: z.array(z.object({
+      name: z.string(),
+      position: z.number(),
+      items: z.array(z.object({
+        title: z.string(),
+        type: z.string(),
+      })),
+    })),
+    syllabus: z.string().nullable(),
+    totalModules: z.number(),
+    totalModuleItems: z.number(),
+  }).optional(),
+  scheduleId: z.string().optional(),
+  targetDate: z.string().optional(), // ISO date string for test/assignment due date
   aiContent: z.string(),
   aiGeneratedAt: z.number(),
   createdAt: z.number(),
@@ -98,6 +122,8 @@ export type Session = z.infer<typeof SessionSchema>
 export type Availability = z.infer<typeof AvailabilitySchema>
 export type UserProfile = z.infer<typeof UserProfileSchema>
 export type StudyGuide = z.infer<typeof StudyGuideSchema>
+export type StudyItem = z.infer<typeof StudyItemSchema>
+export type StudySchedule = z.infer<typeof StudyScheduleSchema>
 export type NotificationPreferences = z.infer<typeof NotificationPreferencesSchema>
 export type Notification = z.infer<typeof NotificationSchema>
 
@@ -115,8 +141,26 @@ export type CanvasAssignment = {
   html_url: string
 }
 
-export type CanvasModule = {
-  id: number
-  name: string
-}
+export const StudyItemSchema = z.object({
+  id: z.string(),
+  section: z.string(),
+  content: z.string(),
+  estimatedMinutes: z.number().positive(),
+  scheduledDate: z.string(), // ISO date string
+  completedAt: z.number().nullable(),
+  order: z.number().nonnegative(),
+})
+
+export const StudyScheduleSchema = z.object({
+  id: z.string(),
+  guideId: z.string(),
+  userId: z.string(),
+  targetDate: z.string(), // ISO date string
+  startDate: z.string(), // ISO date string
+  items: z.array(StudyItemSchema),
+  totalEstimatedMinutes: z.number().nonnegative(),
+  lastRecalculated: z.number(),
+  createdAt: z.number(),
+  updatedAt: z.number(),
+})
 

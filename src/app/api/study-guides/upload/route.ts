@@ -6,6 +6,10 @@ import { v4 as uuidv4 } from 'uuid'
 
 const MAX_FILE_SIZE = 10 * 1024 * 1024 // 10MB
 
+// Increase body size limit for file uploads
+export const maxDuration = 300 // 5 minutes
+export const runtime = 'nodejs'
+
 export async function POST(req: NextRequest) {
   const user = await getServerUser(req)
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
@@ -15,7 +19,20 @@ export async function POST(req: NextRequest) {
   }
 
   try {
-    const formData = await req.formData()
+    let formData: FormData
+    try {
+      formData = await req.formData()
+    } catch (formDataError: any) {
+      console.error('Error parsing FormData:', formDataError)
+      if (formDataError.message?.includes('413') || formDataError.message?.includes('exceeds')) {
+        return NextResponse.json(
+          { error: 'File size too large. Maximum file size is 10MB. Please compress your PDF or split it into smaller files.' },
+          { status: 413 }
+        )
+      }
+      throw formDataError
+    }
+    
     const file = formData.get('file') as File
     const name = formData.get('name') as string
     const description = formData.get('description') as string | null
@@ -45,20 +62,60 @@ export async function POST(req: NextRequest) {
     // Upload to Firebase Storage
     let bucket
     try {
+      // Try to get default bucket first
       bucket = adminStorage.bucket()
-      // If no bucket is configured, try to get default bucket
+      
+      // If bucket() returns null/undefined, try to construct bucket name
       if (!bucket) {
-        const defaultBucketName = process.env.FIREBASE_STORAGE_BUCKET || process.env.NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET
+        // Remove gs:// prefix if present
+        const bucketNameFromEnv = (process.env.FIREBASE_STORAGE_BUCKET || process.env.NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET || '').replace(/^gs:\/\//, '')
+        
+        const defaultBucketName = 
+          bucketNameFromEnv ||
+          (process.env.FIREBASE_PROJECT_ID ? `${process.env.FIREBASE_PROJECT_ID}.appspot.com` : null)
+        
         if (defaultBucketName) {
           bucket = adminStorage.bucket(defaultBucketName)
         } else {
-          throw new Error('Firebase Storage bucket not configured')
+          throw new Error('Firebase Storage bucket not configured. Please set FIREBASE_STORAGE_BUCKET or FIREBASE_PROJECT_ID environment variable.')
+        }
+      }
+      
+      // Test bucket access by trying to get metadata
+      try {
+        await bucket.getMetadata()
+      } catch (metadataErr: any) {
+        // If default bucket fails, try alternative bucket name formats
+        const projectId = process.env.FIREBASE_PROJECT_ID || 'study-tool-a4fbb'
+        const alternatives = [
+          `${projectId}.firebasestorage.app`,
+          `${projectId}.appspot.com`,
+          process.env.FIREBASE_STORAGE_BUCKET?.replace(/^gs:\/\//, ''),
+          process.env.NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET?.replace(/^gs:\/\//, ''),
+        ].filter(Boolean) as string[]
+        
+        let workingBucket = null
+        for (const altBucketName of alternatives) {
+          try {
+            const testBucket = adminStorage.bucket(altBucketName)
+            await testBucket.getMetadata()
+            workingBucket = testBucket
+            break
+          } catch {
+            // Try next alternative
+          }
+        }
+        
+        if (workingBucket) {
+          bucket = workingBucket
+        } else {
+          throw new Error(`Firebase Storage bucket not accessible. Tried: ${bucket.name || 'default'}, ${alternatives.join(', ')}. Please ensure Storage is enabled and bucket name is correct.`)
         }
       }
     } catch (err: any) {
       console.error('Error accessing Firebase Storage:', err)
       return NextResponse.json(
-        { error: 'Firebase Storage not configured. Please ensure Storage is enabled in your Firebase project.' },
+        { error: err.message || 'Firebase Storage not configured. Please ensure Storage is enabled in your Firebase project and set FIREBASE_STORAGE_BUCKET environment variable.' },
         { status: 500 }
       )
     }
@@ -97,6 +154,7 @@ export async function POST(req: NextRequest) {
       associationType,
       associationId: associationId || null,
       associationName: associationName || null,
+      courseId: associationType === 'course' ? associationId : null,
       aiContent: '',
       aiGeneratedAt: 0,
       createdAt: Date.now(),

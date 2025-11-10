@@ -1,6 +1,7 @@
 'use client'
 
 import { useState } from 'react'
+import Link from 'next/link'
 import { Button } from '@/components/button'
 import { auth } from '@/lib/firebase/client'
 import type { StudyGuide } from '@/lib/schema'
@@ -211,6 +212,14 @@ export default function StudyGuideCard({ guide, onDelete, onRegenerate }: StudyG
           </p>
         </div>
         <div className="flex gap-2">
+          {guide.status === 'ready' && (
+            <Link
+              href={`/study-guides/${guide.id}`}
+              className="px-3 py-1.5 text-sm rounded-full bg-blue-100 text-blue-700 hover:bg-blue-200 dark:bg-blue-900/30 dark:text-blue-400 dark:hover:bg-blue-900/50"
+            >
+              View & Schedule
+            </Link>
+          )}
           <a
             href={guide.pdfUrl}
             target="_blank"

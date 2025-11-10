@@ -28,7 +28,8 @@ export default function RootLayout({
       )}
     >
       <body>
-        <ServiceWorkerRegistration />
+        {/* Temporarily disabled for debugging */}
+        {/* <ServiceWorkerRegistration /> */}
         <div className="isolate">{children}</div>
       </body>
     </html>
