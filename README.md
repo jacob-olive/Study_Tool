@@ -40,6 +40,18 @@ StudyFlow transforms your Canvas assignments and course modules into a structure
 - **Progress Updates**: Mark sessions complete and trigger automatic replanning
 - **Task Organization**: View all imported tasks with course context
 
+### 📝 Study Guides
+- **Per-Course Guides**: Generate study guides scoped to a Canvas course
+- **File Uploads**: Upload supporting materials to Firebase Storage (`users/{uid}/study-guides/...`)
+- **Schedule View**: Calendar-style display of study guide milestones
+- See `src/app/study-guides/` and `src/app/api/study-guides/` for the routes
+
+### 🔔 Push Notifications (optional)
+- **Web Push**: Browser push notifications via the `web-push` package and VAPID keys
+- **Service Worker**: Registered from `public/sw.js` (see `src/components/ServiceWorkerRegistration.tsx`)
+- **Preferences UI**: Users can subscribe/unsubscribe and configure notification preferences
+- **Daily Cron**: `GET /api/cron/recalculate-schedules` recomputes plans on a schedule (designed for Vercel Cron; protected by `CRON_SECRET`)
+
 ## Architecture
 
 ### Tech Stack
@@ -54,12 +66,17 @@ StudyFlow transforms your Canvas assignments and course modules into a structure
 - Next.js API Routes
 - Firebase Admin SDK
 - Firestore Database
+- Firebase Storage (study guide uploads)
 - Server-side Authentication
 
 **Key Libraries:**
+- `openai` - GPT-4o study plan + study guide generation
+- `web-push` - Browser push notifications (VAPID)
 - `date-fns` - Date manipulation and formatting
 - `zod` - Runtime type validation
 - `@headlessui/react` - Accessible UI components
+- `uuid` - ID generation
+- `input-otp` - One-time-passcode auth UI
 
 ### Project Structure
 
@@ -67,40 +84,53 @@ StudyFlow transforms your Canvas assignments and course modules into a structure
 src/
 ├── app/
 │   ├── (auth)/
-│   │   └── login/              # Authentication pages
+│   │   ├── login/              # Email/password + Google sign-in
+│   │   └── otp/                # One-time passcode flow
 │   ├── api/
 │   │   ├── auth/
 │   │   │   └── session/        # Session cookie management
 │   │   ├── canvas/
 │   │   │   ├── connect/        # Canvas PAT connection
+│   │   │   ├── courses/        # List Canvas courses
 │   │   │   ├── status/         # Check connection status
 │   │   │   └── sync/           # Sync Canvas data
 │   │   ├── plan/
-│   │   │   └── recompute/      # Regenerate study schedule
+│   │   │   ├── recompute/      # Regenerate study schedule
+│   │   │   └── ai-generate/    # GPT-4o study plan generation
+│   │   ├── study-guides/
+│   │   │   ├── list/
+│   │   │   ├── generate/
+│   │   │   ├── generate-from-course/
+│   │   │   ├── upload/         # Firebase Storage upload
+│   │   │   └── [id]/
+│   │   ├── notifications/
+│   │   │   ├── preferences/
+│   │   │   ├── subscribe/      # Web push subscription
+│   │   │   └── send/           # Send push notification
+│   │   ├── cron/
+│   │   │   └── recalculate-schedules/  # Daily recompute (CRON_SECRET-gated)
 │   │   └── user/
 │   │       └── me/             # User profile endpoint
 │   ├── page.tsx                # Dashboard
-│   ├── plan/
-│   │   └── page.tsx            # Study plan view
-│   ├── session/
-│   │   └── [id]/
-│   │       └── page.tsx        # Session timer/player
-│   └── settings/
-│       └── page.tsx            # Canvas & preferences
-├── components/
-│   ├── CanvasConnectCard.tsx   # Canvas integration UI
-│   ├── StudyPlanBoard.tsx      # Session list display
-│   ├── SessionPlayer.tsx       # Timer component
-│   ├── Protected.tsx           # Server-side auth wrapper
-│   └── ...                     # Shared UI components
+│   ├── plan/                   # Study plan view
+│   ├── session/[id]/           # Session timer/player
+│   ├── settings/               # Canvas + notification prefs
+│   └── study-guides/           # Study guide list + detail
+├── components/                 # CanvasConnectCard, StudyPlanBoard,
+│                               # SessionPlayer, AIStudyPlan,
+│                               # StudyGuide* , Notification* ,
+│                               # ServiceWorkerRegistration, Protected, ...
 ├── lib/
 │   ├── firebase/
 │   │   ├── client.ts           # Firebase client initialization
-│   │   └── admin.ts            # Firebase Admin SDK
+│   │   └── admin.ts            # Firebase Admin SDK (Auth/Firestore/Storage)
 │   ├── auth.ts                 # Server auth helpers
-│   ├── canvas.ts               # Encryption utilities
+│   ├── canvas.ts               # AES-256-GCM encryption utilities
 │   ├── scheduling.ts           # Scheduling algorithm
-│   └── schema.ts               # Type definitions & validation
+│   ├── study-schedule.ts       # Study-guide schedule generation
+│   ├── study-guide-parser.ts   # Study-guide parsing helpers
+│   ├── notifications.ts        # web-push + preferences
+│   └── schema.ts               # Zod schemas / type definitions
 ```
 
 ### Database Schema
@@ -116,7 +146,17 @@ users/{userId}/
   │   └── active/
   │       ├── tasks/            # Imported assignments & modules
   │       └── sessions/         # Generated study sessions
-  └── events/                   # User calendar events (future)
+  ├── events/                   # User calendar events (future)
+  ├── notifications/            # In-app notification feed
+  ├── push-subscriptions/       # Web Push endpoints (per device)
+  └── study-guides/{guideId}/
+      └── schedule/             # Study-guide milestone schedule
+```
+
+**Firebase Storage:**
+
+```
+users/{userId}/study-guides/...  # Uploaded study-guide source files
 ```
 
 ### Security
